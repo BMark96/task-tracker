@@ -21,9 +21,11 @@ double-click that.
    **To Do**. The box stays focused so you can rattle off several in a row.
 3. **Add a comment** — every card has an **Add a comment…** bar; type and press Enter
    without opening the card.
-4. **Move a task** — **drag** its card between **To Do → In Progress → Blocked → Done**
-   (each column has its own colour). To move several at once, **Ctrl/Cmd-click** or
-   **Shift-click** cards to select them, then drag any one of them. Click any empty
+4. **Move / reorder a task** — **drag** its card between **To Do → In Progress →
+   Blocked → Done** (each column has its own colour). Drop it on the top or bottom
+   half of another card to place it there (a blue line shows where it lands); drop on
+   empty column space to send it to the end. To move several at once, **Ctrl/Cmd-click**
+   or **Shift-click** cards to select them, then drag any one of them. Click any empty
    space to clear the selection.
 5. **Task details** — click the **▸ Details** button on a card to open it:
    - **Due date & time** — separate date and time fields (time optional). The badge

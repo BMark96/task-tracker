@@ -3,8 +3,8 @@
 A tiny local task tracker: a project list, and per project a board with
 **To Do / In Progress / Blocked / Done** columns. Tasks have a title, a due date
 and time, an optional link, and any number of notes (the latest few show on the
-card). Drag cards between columns — select several with Ctrl/Cmd- or Shift-click
-to move them together.
+card). Drag cards between columns or reorder them within a column — select several
+with Ctrl/Cmd- or Shift-click to move them together.
 
 - **Backend:** one file, `server.py` (Flask). Only dependency: Flask.
 - **Storage:** `tasks.json` next to `server.py`. No database.
@@ -58,6 +58,7 @@ To skip the virtualenv entirely: `pip install --user Flask` once, then just
 }
 ```
 
-Ids are UUIDs. `status` is one of `todo`, `in_progress`, `blocked`, `done`. `due` is a
+Ids are UUIDs. The order of the `tasks` array is the order cards appear in their
+column. `status` is one of `todo`, `in_progress`, `blocked`, `done`. `due` is a
 `YYYY-MM-DDTHH:MM` local datetime or `null`. `url` is a string or `null`. `notes` is a
 list, newest last. It's safe to hand-edit the file while the server is stopped.

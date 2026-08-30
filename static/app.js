@@ -117,6 +117,20 @@ function updateSelHint() {
   }
 }
 
+// Relocate/reorder tasks: move `ids` into `status`, inserted before task `before`
+// (or appended to that column when `before` is null).
+async function moveTasks(pid, ids, status, before) {
+  ids = ids.filter(Boolean);
+  if (!ids.length) return;
+  try {
+    await api("POST", `/projects/${pid}/tasks/move`, { ids, status, before });
+    selected.clear();
+    renderBoard(pid);
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
 function fail(where, err) {
   appEl.innerHTML = "";
   appEl.append(el("p", { class: "error", text: `${where}: ${err.message}` }));
@@ -276,25 +290,12 @@ async function renderBoard(pid) {
           column.classList.add("drag-over");
         },
         ondragleave: () => column.classList.remove("drag-over"),
-        ondrop: async (e) => {
+        ondrop: (e) => {
+          // drop on the column background = append to the end of this column
           e.preventDefault();
           column.classList.remove("drag-over");
-          const raw = e.dataTransfer.getData("text/plain");
-          const ids = raw ? raw.split(",") : [];
-          const toMove = ids.filter((id) => {
-            const task = project.tasks.find((t) => t.id === id);
-            return task && task.status !== col.key;
-          });
-          if (!toMove.length) return;
-          try {
-            await Promise.all(
-              toMove.map((id) => api("PATCH", `/tasks/${id}`, { status: col.key }))
-            );
-            selected.clear();
-            renderBoard(pid);
-          } catch (err) {
-            alert(err.message);
-          }
+          const ids = (e.dataTransfer.getData("text/plain") || "").split(",");
+          moveTasks(pid, ids, col.key, null);
         },
       },
       el("h2", {}, col.label, el("span", { class: "count", text: String(tasks.length) }))
@@ -370,6 +371,29 @@ function taskCard(pid, t, columnIds) {
 
   // --- detail panel ---
   const detail = el("div", { class: "card-detail", hidden: !isOpen });
+
+  const titleInput = el("input", {
+    type: "text",
+    class: "title-input",
+    value: t.title,
+    "aria-label": "Task title",
+    onchange: async () => {
+      const v = titleInput.value.trim();
+      if (!v || v === t.title) {
+        titleInput.value = t.title;
+        return;
+      }
+      try {
+        await api("PATCH", `/tasks/${t.id}`, { title: v });
+        renderBoard(pid);
+      } catch (e) {
+        alert(e.message);
+      }
+    },
+  });
+  detail.append(
+    el("div", { class: "field" }, el("span", { class: "field-label", text: "Title" }), titleInput)
+  );
 
   const dueDate = el("input", { type: "date", value: dueInputValue(t.due).slice(0, 10) });
   const dueTime = el("input", { type: "time", value: dueInputValue(t.due).slice(11, 16) });
@@ -565,6 +589,33 @@ function taskCard(pid, t, columnIds) {
       },
       ondragend: () => {
         appEl.querySelectorAll(".card.dragging").forEach((c) => c.classList.remove("dragging"));
+        appEl.querySelectorAll(".card.drop-above, .card.drop-below")
+          .forEach((c) => c.classList.remove("drop-above", "drop-below"));
+      },
+      ondragover: (e) => {
+        if (card.classList.contains("dragging")) return; // not onto a card being dragged
+        e.preventDefault();
+        e.stopPropagation(); // the column shouldn't also handle it
+        const rect = card.getBoundingClientRect();
+        const below = e.clientY - rect.top > rect.height / 2;
+        card.classList.toggle("drop-below", below);
+        card.classList.toggle("drop-above", !below);
+      },
+      ondragleave: (e) => {
+        e.stopPropagation();
+        card.classList.remove("drop-above", "drop-below");
+      },
+      ondrop: (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const below = card.classList.contains("drop-below");
+        card.classList.remove("drop-above", "drop-below");
+        const ids = (e.dataTransfer.getData("text/plain") || "").split(",").filter(Boolean);
+        if (!ids.length || ids.includes(t.id)) return;
+        // express the drop position as "insert before <id>" within this column
+        const i = columnIds.indexOf(t.id);
+        const beforeId = below ? columnIds[i + 1] || null : t.id;
+        moveTasks(pid, ids, t.status, beforeId);
       },
     },
     head,

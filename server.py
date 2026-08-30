@@ -237,6 +237,47 @@ def delete_task(tid):
     return "", 204
 
 
+@app.post("/api/projects/<pid>/tasks/move")
+def move_tasks(pid):
+    """Reorder/relocate one or more tasks. Task array order is the display order.
+
+    Body: {ids: [...], status?: "todo"|..., before?: "<task id>" | null}
+    Tasks in `ids` are pulled out (keeping the given order), optionally restatused,
+    and reinserted immediately before task `before` (or appended if before is
+    missing/unknown).
+    """
+    data = body()
+    ids = data.get("ids") or []
+    status = data.get("status")
+    before = data.get("before")
+    if status is not None and status not in STATUSES:
+        abort(400, "invalid status")
+    with _lock:
+        p = find_project(pid)
+        if not p:
+            abort(404)
+        idset = set(ids)
+        rank = {tid: i for i, tid in enumerate(ids)}
+        moving = sorted(
+            (t for t in p["tasks"] if t["id"] in idset), key=lambda t: rank[t["id"]]
+        )
+        if not moving:
+            abort(404, "no matching tasks")
+        rest = [t for t in p["tasks"] if t["id"] not in idset]
+        if status is not None:
+            for t in moving:
+                t["status"] = status
+        idx = len(rest)
+        if before:
+            for i, t in enumerate(rest):
+                if t["id"] == before:
+                    idx = i
+                    break
+        p["tasks"] = rest[:idx] + moving + rest[idx:]
+        save()
+        return jsonify(p)
+
+
 # --- notes (many per task) ------------------------------------------
 
 @app.post("/api/tasks/<tid>/notes")

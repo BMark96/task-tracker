@@ -103,14 +103,18 @@ button:hover { filter: brightness(1.08); }
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
-  align-items: start;
+  align-items: stretch; /* every column as tall as the fullest one */
   padding-bottom: 8px;
 }
 .column {
+  display: flex;
+  flex-direction: column;
   background: var(--surface-2);
   border-radius: 10px;
   padding: 12px;
   min-width: 0;
+  /* never shorter than the viewport, so an empty column is always a drop target */
+  min-height: calc(100vh - 150px);
   transition: outline-color .15s;
   outline: 2px dashed transparent;
   outline-offset: -4px;
@@ -134,9 +138,14 @@ button:hover { filter: brightness(1.08); }
   margin-left: 6px;
 }
 .column-empty {
+  flex: 1; /* fill the column so the whole height is an obvious drop zone */
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: var(--muted);
   font-size: 12px;
-  padding: 8px 4px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
 }
 
 /* --- card --- */
@@ -151,8 +160,10 @@ button:hover { filter: brightness(1.08); }
 .card:hover { border-color: var(--muted); }
 .card.selected { outline: 2px solid var(--accent); outline-offset: -1px; }
 .card.dragging { opacity: .4; }
+.card.drop-above { box-shadow: 0 -3px 0 -1px var(--accent); }
+.card.drop-below { box-shadow: 0 3px 0 -1px var(--accent); }
 
-.card-head { display: grid; gap: 5px; }
+.card-head { display: grid; grid-template-columns: minmax(0, 1fr); gap: 5px; }
 .card-row-main { display: flex; align-items: baseline; gap: 8px; }
 .card-title { flex: 1; font-weight: 500; word-break: break-word; }
 .card-toggle {
@@ -164,9 +175,11 @@ button:hover { filter: brightness(1.08); }
   border-radius: 6px;
 }
 .card-toggle:hover { text-decoration: none; background: var(--surface-2); }
-.card-badges { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.card-badges { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; min-width: 0; }
 .badge { font-size: 12px; color: var(--muted); white-space: nowrap; }
 .badge.link {
+  display: inline-block;
+  vertical-align: bottom;
   color: var(--accent);
   text-decoration: none;
   min-width: 0;
@@ -197,7 +210,8 @@ button:hover { filter: brightness(1.08); }
 }
 .field input[type="date"] { flex: 1 1 8rem; min-width: 0; }
 .field input[type="time"] { flex: 0 0 6.5rem; }
-.url-input { flex: 1 1 12rem; min-width: 0; }
+.url-input,
+.title-input { flex: 1 1 12rem; min-width: 0; }
 
 /* --- notes --- */
 .notes-preview { margin-top: 8px; display: grid; gap: 4px; }
