@@ -2,9 +2,9 @@
 
 A tiny local task tracker: a project list, and per project a board with
 **To Do / In Progress / Blocked / Done** columns. Tasks have a title, a due date
-and time, an optional link (e.g. a Zendesk URL), and any number of notes (the
-latest few show on the card). Drag cards between columns — select several with
-Ctrl/Cmd- or Shift-click to move them together.
+and time, an optional link, and any number of notes (the latest few show on the
+card). Drag cards between columns — select several with Ctrl/Cmd- or Shift-click
+to move them together.
 
 - **Backend:** one file, `server.py` (Flask). Only dependency: Flask.
 - **Storage:** `tasks.json` next to `server.py`. No database.
@@ -29,13 +29,6 @@ python server.py            # PORT=8080 python server.py for another port
 To skip the virtualenv entirely: `pip install --user Flask` once, then just
 `python3 server.py`.
 
-## Moving between machines
-
-Copy the folder (or `git pull`). Everything you entered is in `tasks.json` —
-commit it if you want your tasks version-controlled, or keep it in a synced
-folder. Recreate `.venv` on each machine (or use the `--user` install above);
-nothing else is machine-specific.
-
 ## Data format
 
 `tasks.json`:
@@ -53,7 +46,7 @@ nothing else is machine-specific.
           "title": "Draft homepage copy",
           "status": "todo",
           "due": "2026-09-05T14:30",
-          "url": "https://support.example.com/agent/tickets/1234",
+          "url": "https://example.com/ticket/1234",
           "notes": [
             { "id": "c6d1...", "text": "Waiting on brand guide", "created": "2026-08-30T12:05:00Z" }
           ],
