@@ -1,0 +1,6 @@
+.venv/
+__pycache__/
+*.tmp
+tasks.json.tmp
+.DS_Store
+tasks.json
