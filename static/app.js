@@ -154,6 +154,20 @@ document.addEventListener("click", (e) => {
   updateSelHint();
 });
 
+// Let people highlight & copy note text: a card is draggable="true", so a
+// mousedown on it would start a drag instead of a selection. While the pointer
+// is pressed on note text, turn the card's drag off, then restore it.
+appEl.addEventListener("pointerdown", (e) => {
+  if (!e.target.closest(".note-text")) return;
+  const card = e.target.closest(".card");
+  if (card) card.setAttribute("draggable", "false");
+});
+document.addEventListener("pointerup", () => {
+  appEl
+    .querySelectorAll('.card[draggable="false"]')
+    .forEach((c) => c.setAttribute("draggable", "true"));
+});
+
 // --- project list ---------------------------------------------------
 
 async function renderProjects() {
@@ -310,11 +324,44 @@ async function renderBoard(pid) {
 
 // --- task card ---------------------------------------------------
 
+async function copyText(text, btn) {
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      const ta = el("textarea", { style: "position:fixed;opacity:0" });
+      ta.value = text;
+      document.body.append(ta);
+      ta.select();
+      document.execCommand("copy");
+      ta.remove();
+    }
+    const prev = btn.textContent;
+    btn.textContent = "✓";
+    btn.classList.add("copied");
+    setTimeout(() => {
+      btn.textContent = prev;
+      btn.classList.remove("copied");
+    }, 900);
+  } catch (err) {
+    alert("Couldn't copy: " + err.message);
+  }
+}
+
 function noteRow(pid, t, n, withDelete) {
   return el(
     "div",
     { class: "note" },
     el("span", { class: "note-text", text: n.text }),
+    el("button", {
+      class: "link-btn note-copy",
+      text: "⧉",
+      title: "Copy note",
+      onclick: (e) => {
+        e.stopPropagation();
+        copyText(n.text, e.currentTarget);
+      },
+    }),
     withDelete &&
       el("button", {
         class: "link-btn danger note-del",

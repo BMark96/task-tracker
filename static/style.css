@@ -225,8 +225,21 @@ button:hover { filter: brightness(1.08); }
   border-radius: 5px;
   padding: 4px 7px;
 }
-.note-text { flex: 1; white-space: pre-wrap; word-break: break-word; color: var(--text); }
-.note-del { flex: none; padding: 0 4px; line-height: 1; }
+.note-text {
+  flex: 1;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text);
+  cursor: text;
+  -webkit-user-select: text;
+  user-select: text;
+}
+.note-del,
+.note-copy { flex: none; padding: 0 4px; line-height: 1; }
+.note-copy { color: var(--muted); opacity: 0; transition: opacity .12s; }
+.note:hover .note-copy,
+.note-copy:focus-visible { opacity: 1; }
+.note-copy.copied { color: var(--accent); opacity: 1; }
 .notes-more { font-size: 11px; color: var(--muted); padding-left: 4px; }
 .add-note { margin-top: 4px; }
 
