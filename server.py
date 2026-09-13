@@ -204,7 +204,8 @@ def create_task(pid):
             "label": (data.get("label") or "").strip() or None,
             "created": now_iso(),
         }
-        p["tasks"].append(t)
+        # new tasks lead their column, so put them first in display order
+        p["tasks"].insert(0, t)
         save()
     return jsonify(t), 201
 
