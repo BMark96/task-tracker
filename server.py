@@ -58,6 +58,13 @@ def load():
         for t in p["tasks"]:
             t.setdefault("due", None)
             t.setdefault("url", None)
+            # a task used to allow several labels; it now holds at most one
+            if "labels" in t:
+                existing = t.pop("labels")
+                t.setdefault("label", existing[0] if existing else None)
+                changed = True
+            else:
+                t.setdefault("label", None)
             # notes used to be a single string; it is now a list of {id, text, created}
             if not isinstance(t.get("notes"), list):
                 text = (t.get("notes") or "").strip()
@@ -194,6 +201,7 @@ def create_task(pid):
             "due": data.get("due") or None,
             "url": normalize_url(data.get("url")),
             "notes": [],
+            "label": (data.get("label") or "").strip() or None,
             "created": now_iso(),
         }
         p["tasks"].append(t)
@@ -222,6 +230,8 @@ def update_task(tid):
             t["due"] = data.get("due") or None
         if "url" in data:
             t["url"] = normalize_url(data.get("url"))
+        if "label" in data:
+            t["label"] = (data.get("label") or "").strip() or None
         save()
         return jsonify(t)
 

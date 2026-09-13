@@ -3,6 +3,44 @@
 const appEl = document.getElementById("app");
 const crumbEl = document.getElementById("crumb");
 
+// --- theme toggle (overrides the OS/browser prefers-color-scheme setting) ---
+const THEME_KEY = "theme"; // localStorage: "light" | "dark" | absent = follow system
+
+function storedTheme() {
+  try {
+    return localStorage.getItem(THEME_KEY);
+  } catch (_) {
+    return null;
+  }
+}
+function systemPrefersDark() {
+  return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+}
+function currentTheme() {
+  return storedTheme() || (systemPrefersDark() ? "dark" : "light");
+}
+function applyTheme() {
+  const stored = storedTheme();
+  if (stored) document.documentElement.setAttribute("data-theme", stored);
+  else document.documentElement.removeAttribute("data-theme");
+
+  const btn = document.getElementById("theme-toggle");
+  if (!btn) return;
+  const isDark = currentTheme() === "dark";
+  btn.textContent = isDark ? "☀️" : "🌙";
+  const label = isDark ? "Switch to light mode" : "Switch to dark mode";
+  btn.setAttribute("aria-label", label);
+  btn.title = label;
+}
+document.getElementById("theme-toggle")?.addEventListener("click", () => {
+  const next = currentTheme() === "dark" ? "light" : "dark";
+  try {
+    localStorage.setItem(THEME_KEY, next);
+  } catch (_) {}
+  applyTheme();
+});
+applyTheme();
+
 const COLUMNS = [
   { key: "todo", label: "To Do" },
   { key: "in_progress", label: "In Progress" },
@@ -85,6 +123,32 @@ function urlLabel(u) {
     .replace(/\/$/, "");
 }
 
+// Every distinct label used anywhere on the board, so a label typed once
+// becomes a pickable option everywhere else.
+function boardLabels(project) {
+  const set = new Set();
+  for (const t of project.tasks) if (t.label) set.add(t.label);
+  return [...set].sort((a, b) => a.localeCompare(b));
+}
+
+// Fixed categorical palette (see style.css :root) — a label's color is derived
+// from its own text via a stable hash, so the same label name always lands on
+// the same slot everywhere (card badges, the stats legend, the pie chart).
+const LABEL_PALETTE = [
+  "var(--label-1)",
+  "var(--label-2)",
+  "var(--label-3)",
+  "var(--label-4)",
+  "var(--label-5)",
+  "var(--label-6)",
+];
+function labelColor(name) {
+  if (!name) return null;
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) | 0;
+  return LABEL_PALETTE[Math.abs(hash) % LABEL_PALETTE.length];
+}
+
 function applySelection() {
   appEl.querySelectorAll(".card").forEach((c) => {
     c.classList.toggle("selected", selected.has(c.dataset.tid));
@@ -139,8 +203,11 @@ function fail(where, err) {
 // --- routing ----------------------------------------------------------
 
 function router() {
-  const m = (location.hash || "#/").match(/^#\/project\/(.+)$/);
-  if (m) renderBoard(m[1]);
+  const hash = location.hash || "#/";
+  const stats = hash.match(/^#\/project\/([^/]+)\/stats$/);
+  const board = hash.match(/^#\/project\/([^/]+)$/);
+  if (stats) renderStats(stats[1]);
+  else if (board) renderBoard(board[1]);
   else renderProjects();
 }
 window.addEventListener("hashchange", router);
@@ -263,29 +330,65 @@ async function renderBoard(pid) {
 
   appEl.innerHTML = "";
 
-  const form = el(
-    "form",
-    {
-      class: "add-row",
-      onsubmit: async (e) => {
-        e.preventDefault();
-        const input = form.querySelector("input");
-        const title = input.value.trim();
-        if (!title) return;
-        try {
-          await api("POST", `/projects/${pid}/tasks`, { title });
-          await renderBoard(pid);
-          const next = appEl.querySelector(".add-row input");
-          if (next) next.focus(); // keep typing the next task
-        } catch (err) {
-          alert(err.message);
-        }
+  const labelListId = "board-labels";
+  const labelList = el("datalist", { id: labelListId });
+  for (const l of boardLabels(project)) labelList.append(el("option", { value: l }));
+  appEl.append(labelList);
+
+  const newTitle = el("input", {
+    type: "text",
+    class: "new-task-title",
+    placeholder: "New task — added to To Do",
+    "aria-label": "New task",
+  });
+  const newLabel = el("input", {
+    type: "text",
+    class: "new-task-label",
+    placeholder: "Label (optional)",
+    "aria-label": "Label",
+    list: labelListId,
+  });
+  const newUrl = el("input", {
+    // plain text, not type="url" — that form-validates on submit and would
+    // silently block adding a task for a bare "example.com" (no scheme)
+    type: "text",
+    class: "new-task-url",
+    placeholder: "Link (optional)",
+    "aria-label": "Link",
+  });
+  const topRow = el(
+    "div",
+    { class: "board-top-row" },
+    el(
+      "form",
+      {
+        class: "add-row",
+        onsubmit: async (e) => {
+          e.preventDefault();
+          const title = newTitle.value.trim();
+          if (!title) return;
+          try {
+            await api("POST", `/projects/${pid}/tasks`, {
+              title,
+              label: newLabel.value.trim() || null,
+              url: newUrl.value.trim() || null,
+            });
+            await renderBoard(pid);
+            const next = appEl.querySelector(".add-row .new-task-title");
+            if (next) next.focus(); // keep typing the next task
+          } catch (err) {
+            alert(err.message);
+          }
+        },
       },
-    },
-    el("input", { type: "text", placeholder: "New task — added to To Do", "aria-label": "New task" }),
-    el("button", { type: "submit", text: "Add task" })
+      newTitle,
+      newLabel,
+      newUrl,
+      el("button", { type: "submit", text: "Add task" })
+    ),
+    el("a", { href: `#/project/${pid}/stats`, class: "btn stats-btn", text: "📊 Stats" })
   );
-  appEl.append(form);
+  appEl.append(topRow);
 
   appEl.append(el("div", { class: "sel-hint" }));
   updateSelHint();
@@ -315,7 +418,7 @@ async function renderBoard(pid) {
       el("h2", {}, col.label, el("span", { class: "count", text: String(tasks.length) }))
     );
     if (!tasks.length) column.append(el("div", { class: "column-empty", text: "Drop tasks here" }));
-    for (const t of tasks) column.append(taskCard(pid, t, columnIds));
+    for (const t of tasks) column.append(taskCard(pid, t, columnIds, labelListId));
     board.append(column);
   }
   appEl.append(board);
@@ -380,7 +483,7 @@ function noteRow(pid, t, n, withDelete) {
   );
 }
 
-function taskCard(pid, t, columnIds) {
+function taskCard(pid, t, columnIds, labelListId) {
   const isOpen = expanded.has(t.id);
   const notes = t.notes || [];
 
@@ -497,6 +600,52 @@ function taskCard(pid, t, columnIds) {
     el("div", { class: "field" }, el("span", { class: "field-label", text: "Link" }), urlInput)
   );
 
+  const labelDot = el("span", {
+    class: "label-dot",
+    hidden: !t.label,
+    style: t.label ? `background:${labelColor(t.label)}` : "",
+  });
+  const labelInput = el("input", {
+    type: "text",
+    class: "label-input",
+    placeholder: "No label",
+    "aria-label": "Label",
+    value: t.label || "",
+    list: labelListId,
+    onchange: async () => {
+      const name = labelInput.value.trim();
+      try {
+        await api("PATCH", `/tasks/${t.id}`, { label: name || null });
+        renderBoard(pid);
+      } catch (e) {
+        alert(e.message);
+      }
+    },
+  });
+  detail.append(
+    el(
+      "div",
+      { class: "field" },
+      el("span", { class: "field-label", text: "Label" }),
+      labelDot,
+      labelInput,
+      t.label &&
+        el("button", {
+          class: "link-btn",
+          text: "clear",
+          onclick: async (e) => {
+            e.stopPropagation();
+            try {
+              await api("PATCH", `/tasks/${t.id}`, { label: null });
+              renderBoard(pid);
+            } catch (err) {
+              alert(err.message);
+            }
+          },
+        })
+    )
+  );
+
   const allNotes = el("div", { class: "notes-all" });
   for (const n of notes) allNotes.append(noteRow(pid, t, n, true));
   detail.append(allNotes);
@@ -582,6 +731,16 @@ function taskCard(pid, t, columnIds) {
     );
   }
   if (notes.length) badges.append(el("span", { class: "badge", text: "💬 " + notes.length }));
+  if (t.label) {
+    badges.append(
+      el(
+        "span",
+        { class: "badge label-badge" },
+        el("span", { class: "label-dot", style: `background:${labelColor(t.label)}` }),
+        t.label
+      )
+    );
+  }
 
   const head = el(
     "div",
@@ -671,4 +830,184 @@ function taskCard(pid, t, columnIds) {
     detail
   );
   return card;
+}
+
+// --- stats page -----------------------------------------------------
+
+const OTHER_SLICE_COLOR = "var(--muted)";
+const MAX_SLICES = 6; // more than this and adjacent wedges blur together — fold the tail into "Other"
+
+function svgEl(tag, attrs, ...children) {
+  const node = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v === null || v === undefined || v === false) continue;
+    if (k.startsWith("on")) node.addEventListener(k.slice(2), v);
+    else node.setAttribute(k, v);
+  }
+  for (const c of children.flat()) {
+    if (c === null || c === undefined || c === false) continue;
+    node.append(c.nodeType ? c : document.createTextNode(c));
+  }
+  return node;
+}
+
+function polarToCartesian(cx, cy, r, angleDeg) {
+  const a = ((angleDeg - 90) * Math.PI) / 180;
+  return { x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) };
+}
+
+// SVG arcs can't span a full 360°, so a single-category pie is drawn as two half-arcs.
+function pieSlicePath(cx, cy, r, startAngle, endAngle) {
+  if (endAngle - startAngle >= 359.999) {
+    const top = polarToCartesian(cx, cy, r, 0);
+    const bottom = polarToCartesian(cx, cy, r, 180);
+    return `M ${top.x} ${top.y} A ${r} ${r} 0 1 1 ${bottom.x} ${bottom.y} A ${r} ${r} 0 1 1 ${top.x} ${top.y} Z`;
+  }
+  const start = polarToCartesian(cx, cy, r, startAngle);
+  const end = polarToCartesian(cx, cy, r, endAngle);
+  const largeArc = endAngle - startAngle > 180 ? 1 : 0;
+  return `M ${cx} ${cy} L ${start.x} ${start.y} A ${r} ${r} 0 ${largeArc} 1 ${end.x} ${end.y} Z`;
+}
+
+async function renderStats(pid) {
+  let project;
+  try {
+    project = await api("GET", `/projects/${pid}`);
+  } catch (e) {
+    return fail("Failed to load project", e);
+  }
+
+  crumbEl.innerHTML = "";
+  crumbEl.append(
+    el("a", { href: "#/", text: "Task Tracker" }),
+    el("span", { class: "sep", text: "/" }),
+    el("a", { href: `#/project/${pid}`, text: project.name }),
+    el("span", { class: "sep", text: "/" }),
+    el("span", { text: "Stats" })
+  );
+
+  appEl.innerHTML = "";
+  appEl.append(el("a", { href: `#/project/${pid}`, class: "link-btn back-link", text: "← Back to board" }));
+
+  if (!project.tasks.length) {
+    appEl.append(el("p", { class: "empty", text: "No tickets yet." }));
+    return;
+  }
+
+  // count tickets per label; a ticket with no label counts toward "Unlabeled"
+  const counts = new Map();
+  let unlabeled = 0;
+  for (const t of project.tasks) {
+    if (!t.label) {
+      unlabeled++;
+      continue;
+    }
+    counts.set(t.label, (counts.get(t.label) || 0) + 1);
+  }
+
+  let entries = [...counts.entries()].map(([name, count]) => ({ name, count, isOther: false }));
+  if (unlabeled) entries.push({ name: "Unlabeled", count: unlabeled, isOther: false });
+  entries.sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+
+  if (entries.length > MAX_SLICES) {
+    const kept = entries.slice(0, MAX_SLICES - 1);
+    const rest = entries.slice(MAX_SLICES - 1);
+    kept.push({ name: "Other", count: rest.reduce((s, e) => s + e.count, 0), isOther: true });
+    entries = kept;
+  }
+
+  // same label -> same color everywhere; "Unlabeled" and the folded "Other"
+  // bucket use the neutral tone since they aren't real labels.
+  for (const e of entries) {
+    e.color = e.isOther || e.name === "Unlabeled" ? OTHER_SLICE_COLOR : labelColor(e.name);
+  }
+
+  const total = entries.reduce((s, e) => s + e.count, 0);
+  appEl.append(
+    el("h2", { class: "stats-title", text: `${total} ticket${total === 1 ? "" : "s"} by label` })
+  );
+
+  const hoverInfo = el("p", { class: "pie-hover muted", text: "Hover or focus a slice for details" });
+
+  function setHover(e) {
+    const pct = Math.round((e.count / total) * 100);
+    hoverInfo.textContent = `${e.name}: ${e.count} ticket${e.count === 1 ? "" : "s"} (${pct}%)`;
+    appEl.querySelectorAll("[data-slice-name], [data-legend-name]").forEach((node) => {
+      const name = node.dataset.sliceName ?? node.dataset.legendName;
+      node.classList.toggle("hovered", name === e.name);
+    });
+  }
+  function clearHover() {
+    hoverInfo.textContent = "Hover or focus a slice for details";
+    appEl.querySelectorAll(".hovered").forEach((node) => node.classList.remove("hovered"));
+  }
+
+  const size = 220, cx = size / 2, cy = size / 2, r = 96;
+  const svg = svgEl("svg", {
+    viewBox: `0 0 ${size} ${size}`,
+    class: "pie-chart",
+    role: "img",
+    "aria-label": `Ticket counts by label: ${entries.map((e) => `${e.name} ${e.count}`).join(", ")}`,
+  });
+  let angle = 0;
+  for (const e of entries) {
+    const start = angle;
+    angle += (e.count / total) * 360;
+    svg.append(
+      svgEl("path", {
+        d: pieSlicePath(cx, cy, r, start, angle),
+        fill: e.color,
+        class: "pie-slice",
+        "data-slice-name": e.name,
+        tabindex: "0",
+        role: "img",
+        "aria-label": `${e.name}: ${e.count} ticket${e.count === 1 ? "" : "s"}`,
+        onmouseenter: () => setHover(e),
+        onfocus: () => setHover(e),
+        onmouseleave: clearHover,
+        onblur: clearHover,
+      })
+    );
+  }
+
+  const legend = el(
+    "table",
+    { class: "stats-table" },
+    el(
+      "thead",
+      {},
+      el("tr", {}, el("th", { text: "Label" }), el("th", { text: "Tickets" }), el("th", { text: "Share" }))
+    ),
+    el(
+      "tbody",
+      {},
+      entries.map((e) =>
+        el(
+          "tr",
+          {
+            "data-legend-name": e.name,
+            onmouseenter: () => setHover(e),
+            onmouseleave: clearHover,
+          },
+          el(
+            "td",
+            {},
+            el("span", { class: "legend-swatch", style: `background:${e.color}` }),
+            e.name
+          ),
+          el("td", { text: String(e.count) }),
+          el("td", { text: `${Math.round((e.count / total) * 100)}%` })
+        )
+      )
+    )
+  );
+
+  appEl.append(
+    el(
+      "div",
+      { class: "stats-layout" },
+      el("div", { class: "pie-wrap" }, svg, hoverInfo),
+      legend
+    )
+  );
 }
